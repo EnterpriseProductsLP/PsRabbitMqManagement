@@ -48,7 +48,7 @@ Function Find-RabbitMqCtl {
     $rabbitCommand = Get-Command "rabbitmqctl.bat"
     if ($?)
     {
-        $rabbitControlPath = $rabbitCommand.Source
+        $rabbitControlPath = $rabbitCommand.Name
         return $rabbitControlPath
     }
 
