@@ -429,6 +429,81 @@ Function Clear-RabbitMqPassword {
     }
 }
 
+Function Clear-RabbitMqUserTags {
+<#
+.SYNOPSIS
+    Clears user tags in RabbitMQ.
+
+.DESCRIPTION
+	Clears all tags from the given user in the given RabbitMQ node.
+
+.PARAMETER Node
+    Default node is "rabbit@server", where server is the local host. On a host named "server.example.com", the node name of the RabbitMQ Erlang node will usually be rabbit@server (unless RABBITMQ_NODENAME has been set to some non-default value at broker startup time).
+
+.PARAMETER Quiet
+    Informational messages are suppressed when quiet mode is in effect.
+
+.PARAMETER Username
+    The name of the user whose tags are to be set.
+
+.EXAMPLE
+    #This command instructs RabbitMQ to remove any tags from the user named tonyg.
+        Clear-RabbitMqUserTags -Username tonyg
+
+.FUNCTIONALITY
+    RabbitMQ
+#>
+    [cmdletbinding()]
+    param (
+        # rabbitmqctl parameter [-n node]
+        [Parameter(Mandatory=$false)]
+        [String] $Node=$null,
+
+        # rabbitmqctl parameter [-q (quiet)]
+        [Parameter(Mandatory=$false)]
+        [switch] $Quiet,
+
+        [Parameter(Mandatory=$true)]
+        [string] $Username
+    )
+    
+    Begin
+    {
+        Write-Verbose "Begin: Clear-RabbitMqUserTags"
+    }
+    
+    Process
+    {
+        Try
+        {
+            $rabbitControlPath = Find-RabbitMqCtl
+        }
+        
+        Catch
+        {
+            Break
+        }
+
+        [string[]] $rabbitControlParams = Build-RabbitMq-Params -Node $Node -Quiet $Quiet
+
+        Write-Verbose "Adding command parameter."
+        $rabbitControlParams = $rabbitControlParams + "set_user_tags"
+
+        Write-Verbose "Adding username parameter."
+        $rabbitControlParams = $rabbitControlParams + $Username
+
+        Write-Verbose "Note that no tags param is included, causing the values to be cleared."
+
+        Write-Verbose "Executing command: $rabbitControlPath $rabbitControlParams"
+        Start-Process -ArgumentList $rabbitControlParams -FilePath "$rabbitControlPath" -NoNewWindow -Wait
+    }
+
+    End
+    {
+        Write-Verbose "End: Clear-RabbitMqUserTags"
+    }
+}
+
 Function Confirm-RabbitMqCredentials {
 <#
 .SYNOPSIS
@@ -1119,7 +1194,7 @@ Function Set-RabbitMqUserTags {
     Sets user tags in RabbitMQ.
 
 .DESCRIPTION
-	Sets the given tag for the given user in the given RabbitMQ node.  If no tags are given, removes all tags from the given user.
+	Sets the given tag for the given user in the given RabbitMQ node.
 
 .PARAMETER Node
     Default node is "rabbit@server", where server is the local host. On a host named "server.example.com", the node name of the RabbitMQ Erlang node will usually be rabbit@server (unless RABBITMQ_NODENAME has been set to some non-default value at broker startup time).
@@ -1131,15 +1206,11 @@ Function Set-RabbitMqUserTags {
     The name of the user whose tags are to be set.
 
 .PARAMETER Tag
-    Zero, one or more tags to set. Any existing tags will be removed.
+    One or more tags to set. Any existing tags will be removed.
 
 .EXAMPLE
     #This command instructs RabbitMQ to ensure the user named tonyg is an administrator on the node rabbit@HOSTNAME, has management plugin rights, and suppressed informational messages. This has no effect when the user logs in via AMQP, but can be used to permit the user to manage users, virtual hosts and permissions when the user logs in via some other means (for example with the management plugin).
         Set-RabbitMqUserTags -Node "rabbit@HOSTNAME" -Username tonyg -Tag administrator,management -Quiet
-
-.EXAMPLE
-    #This command instructs RabbitMQ to remove any tags from the user named tonyg.
-        Set-RabbitMqUserTags -Username tonyg
 
 .FUNCTIONALITY
     RabbitMQ
@@ -1157,8 +1228,8 @@ Function Set-RabbitMqUserTags {
         [Parameter(Mandatory=$true)]
         [string] $Username,
 
-        [Parameter(Mandatory=$false)]
-        [string[]] $Tag=@("")
+        [Parameter(Mandatory=$true)]
+        [string[]] $Tag
     )
     
     Begin
@@ -1188,7 +1259,7 @@ Function Set-RabbitMqUserTags {
 
         Write-Verbose "Adding tag parameter."
         $rabbitControlParams = $rabbitControlParams + $Tag
-        
+
         Write-Verbose "Executing command: $rabbitControlPath $rabbitControlParams"
         Start-Process -ArgumentList $rabbitControlParams -FilePath "$rabbitControlPath" -NoNewWindow -Wait
     }
@@ -3716,6 +3787,10 @@ Function Invoke-RabbitMqLogSwap {
         [Parameter(Mandatory=$false)]
         [String] $VHost=$null,
 
+        # rabbitmqctl parameter [suffix]
+        [Parameter(Mandatory=$false)]
+        [string] $Suffix,
+
         # rabbitmqctl parameter [-q (quiet)]
         [Parameter(Mandatory=$false)]
         [switch] $Quiet,
@@ -3747,8 +3822,12 @@ Function Invoke-RabbitMqLogSwap {
         Write-Verbose "Adding command parameter."
         $rabbitControlParams = $rabbitControlParams + "rotate_logs"
         if($Delete -ne $true){
-            Write-Verbose "Adding suffix parameter."
-            $rabbitControlParams = $rabbitControlParams + $Suffix
+            if($Suffix) {
+                Write-Verbose "Adding suffix parameter."
+                $rabbitControlParams = $rabbitControlParams + $Suffix
+            } else {
+                Write-Error "Suffix parameter is required if Delete flag is not specified."
+            }
         } else {
             Write-Verbose "Delete specified - no log archives created."
         }
@@ -4945,6 +5024,7 @@ Export-ModuleMember -Function Clear-RabbitMqPolicy
 Export-ModuleMember -Function Clear-RabbitMqQueue
 Export-ModuleMember -Function Clear-RabbitMqTrace
 Export-ModuleMember -Function Clear-RabbitMqUserPermissions
+Export-ModuleMember -Function Clear-RabbitMqUserTags
 Export-ModuleMember -Function Confirm-RabbitMqCredentials
 Export-ModuleMember -Function Get-RabbitMqBindings
 Export-ModuleMember -Function Get-RabbitMqBrokerStatus
